@@ -22,12 +22,11 @@ class Trainer:
                  target_transform: dict = None,
                  metrics: list = None):
         self.cfg = cfg
-        self.model = models.resnet50(pretrained=True,
-                                     num_classes=self.cfg.model_params.out_features).to(self.cfg.device)
+        self.model = model
 
-        self.optimizer = optim.Adam(self.model.parameters(), lr=self.cfg.lr)
-        self.scheduler = ReduceLROnPlateau(self.optimizer, **self.cfg.scheduler_kwargs)
-        self.criterion = nn.CrossEntropyLoss()
+        self.optimizer = optimizer
+        self.scheduler = scheduler
+        self.criterion = criterion
         self.metrics = metrics
         self.transform = transform
         self.target_transform = target_transform
@@ -101,7 +100,7 @@ class Trainer:
             if debug:
                 print('\n___', f'Iteration {i}', '___')
 
-            one_hots = F.one_hot(targets, num_classes=self.cfg.model_params.out_features).transpose(1, -1).squeeze(-1)
+            one_hots = F.one_hot(targets, num_classes=self.cfg.out_features).transpose(1, -1).squeeze(-1)
             predictions = self.model(images.to(self.device))
 
             if calc_metrics:
