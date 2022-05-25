@@ -51,16 +51,19 @@ class Trainer:
                                                            transform=transform,
                                                            target_transform=target_transform)
 
-        def collate_target_dict(batch):
-            img_list, target_list = batch
-            target = target_list[0]
-            for t in target_list[1:]:
-                for k, v in t.items():
-                    target[k] = target[k]
-            return torch.stack(img_list, 0), target
-
         self.dataloaders[data_type] = DataLoader(self.datasets[data_type], batch_size=self.cfg.batch_size,
-                                                 collate_fn=collate_target_dict, shuffle=self.cfg.shuffle)
+                                                 shuffle=self.cfg.shuffle)
+
+        # def collate_target_dict(batch):
+        #     img_list, target_list = batch
+        #     target = target_list[0]
+        #     for t in target_list[1:]:
+        #         for k, v in t.items():
+        #             target[k] = target[k]
+        #     return torch.stack(img_list, 0), target
+
+        # self.dataloaders[data_type] = DataLoader(self.datasets[data_type], batch_size=self.cfg.batch_size,
+        #                                          collate_fn=collate_target_dict, shuffle=self.cfg.shuffle)
 
     @torch.no_grad()
     def _calc_epoch_metrics(self, stage):
@@ -101,26 +104,24 @@ class Trainer:
             self._global_step[stage] += 1
             debug = self.cfg.debug and i % self.cfg.show_each == 0
 
-            if debug:
-                print('\n___', f'Iteration {i}', '___')
-
             one_hots = F.one_hot(targets, num_classes=self.cfg.out_features).transpose(1, -1).squeeze(-1)
             predictions = self.model(images.to(self.device))
 
             if calc_metrics:
                 self._calc_batch_metrics(predictions, one_hots, stage, debug)
 
-            if stage == 'train':
-                loss = self.criterion(predictions, one_hots.float().to(self.device))
-                self.writer.add_scalar(f'{stage}/loss', loss, self._global_step[stage])
+            loss = self.criterion(predictions, one_hots.float().to(self.device))
+            self.writer.add_scalar(f'{stage}/loss', loss, self._global_step[stage])
 
+            if debug:
+                print('\n___', f'Iteration {i}', '___')
+                print(f'Train Loss: {loss.item()}')
+
+            if stage == 'train':
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
                 self.scheduler.step(loss.detach())
-
-                if debug:
-                    print(f'Train Loss: {loss.item()}')
 
         if calc_metrics and epoch is not None:
             print('\n___', f'Epoch Summary', '___')
@@ -137,16 +138,24 @@ class Trainer:
     def test(self):
         self._epoch_step(stage='test')
 
-    def save_model(self, epoch):
-        path = os.path.join(self.cfg.SAVE_PATH, f'{epoch}.pth')
+    def save_model(self, epoch, path=None):
+        path = self.cfg.SAVE_PATH if path is None else path
 
-        if not os.path.exists(self.cfg.SAVE_PATH):
-            os.makedirs(self.cfg.SAVE_PATH)
+        if not os.path.exists(path):
+            os.makedirs(path)
 
-        torch.save(self.model.state_dict(), path)
-        print('model saved')
+        path = os.path.join(path, f'{epoch}.pth')
+
+        checkpoint = dict(epoch=self._global_step,
+                          model=self.model.state_dict(),
+                          optimizer=self.optimizer.state_dict())
+
+        torch.save(checkpoint, path)
+        print('model saved, epoch:', epoch)
 
     def load_model(self, path):
-        self.model.load_state_dict(torch.load(path))
-        self.model.eval()
+        checkpoint = torch.load(path)
+        self._global_step = checkpoint['epoch']
+        self.model.load_state_dict(checkpoint['model'])
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
         print('model loaded')
