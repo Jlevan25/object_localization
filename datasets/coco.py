@@ -1,14 +1,30 @@
+import json
+import os
+import pickle
 from typing import Tuple, Any
 
+import numpy as np
+from PIL.Image import Image
 from torchvision.datasets import CocoDetection
 
 
 class CocoLocalizationDataset(CocoDetection):
 
-    def __init__(self, root: str, annFile: str, transform=None, target_transform=None, transforms=None):
+    def __init__(self, root: str, annFile: str, mapping: str = None, transform=None, target_transform=None,
+                 transforms=None):
         super().__init__(root, annFile, transform, target_transform, transforms)
-        self.overfit = True
+        self.overfit = False
         self._batch_size = None
+        self.mapping = None
+
+        if mapping is not None:
+            self._get_mapping(mapping)
+
+    def _get_mapping(self, mapping_path):
+        with open(mapping_path, 'r') as f:
+            mapping = json.load(f)
+            f.close()
+        self.mapping = {int(k): v for k, v in mapping.items()}
 
     def set_overfit_mode(self, batch_size: int):
         self.overfit = True
@@ -22,8 +38,11 @@ class CocoLocalizationDataset(CocoDetection):
         image = self._load_image(id)
         target = self._load_target(id)[0]['category_id']
 
+        if self.mapping is not None:
+            target = self.mapping[target]['mapped_id']
+
         if self.transforms is not None:
-            image, target = self.transforms(image, target)
+            image, mapped_target = self.transforms(image, target)
 
         return image, target
 
