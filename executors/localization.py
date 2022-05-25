@@ -80,7 +80,7 @@ dataloaders_dict = {train_key: DataLoader(datasets_dict[train_key],
 
 metrics = [BalancedAccuracy(cfg.out_features)]
 model = models.resnet50(pretrained=True,
-                        num_classes=cfg.out_features).to(cfg.device)
+                        num_classes=cfg.out_features).to(cfg.device).eval()
 
 optimizer = optim.Adam(model.parameters(), lr=cfg.lr)
 scheduler = ReduceLROnPlateau(optimizer)
