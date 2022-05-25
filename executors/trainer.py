@@ -104,13 +104,13 @@ class Trainer:
             self._global_step[stage] += 1
             debug = self.cfg.debug and i % self.cfg.show_each == 0
 
-            one_hots = F.one_hot(targets, num_classes=self.cfg.out_features).transpose(1, -1).squeeze(-1)
+            # one_hots = F.one_hot(targets, num_classes=self.cfg.out_features).transpose(1, -1).squeeze(-1)
             predictions = self.model(images.to(self.device))
 
-            if calc_metrics:
-                self._calc_batch_metrics(predictions, one_hots, stage, debug)
+            # if calc_metrics:
+            #     self._calc_batch_metrics(predictions, one_hots, stage, debug)
 
-            loss = self.criterion(predictions, one_hots.float().to(self.device))
+            loss = self.criterion(predictions, targets.to(self.device).float())
             self.writer.add_scalar(f'{stage}/loss', loss, self._global_step[stage])
 
             if debug:
