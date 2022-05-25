@@ -89,8 +89,8 @@ trainer = Trainer(datasets_dict=datasets_dict, dataloaders_dict=dataloaders_dict
 # trainer.load_model(trainer_cfg.LOAD_PATH)
 epoch = 5
 for epoch in range(epoch):
-    # trainer.fit(epoch)
-    # trainer.save_model(epoch)
+    trainer.fit(epoch)
+    trainer.save_model(epoch)
 
     trainer.writer.add_scalar(f'scheduler lr', trainer.optimizer.param_groups[0]['lr'], epoch)
     trainer.validation(epoch)
