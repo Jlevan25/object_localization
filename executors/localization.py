@@ -1,4 +1,6 @@
+import json
 import os.path
+import pickle
 
 import numpy as np
 import torch
@@ -11,7 +13,7 @@ from torchvision import transforms, datasets
 
 from datasets import CocoLocalizationDataset
 from executors.trainer import Trainer
-from transforms import UnNormalize, GetFromAnns
+from transforms import UnNormalize, GetFromAnns, ClassMapping
 from configs import Config
 from metrics import MeanIoU, BalancedAccuracy
 from torch.utils.tensorboard import SummaryWriter
@@ -20,7 +22,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATASET_ROOT = os.path.join(ROOT, 'datasets', 'COCO_SOLO')
 
 cfg = Config(ROOT_DIR=ROOT, DATASET_DIR=DATASET_ROOT,
-             dataset_name='COCO_SOLO', out_features=90,
+             dataset_name='COCO_SOLO', out_features=80,
              model_name='Resnet50', device='cpu',
              batch_size=128, lr=0.01, overfit=False,
              debug=True, show_each=100,
@@ -42,23 +44,27 @@ train_preprocess = transforms.Compose(resnet_preprocess_block)
 eval_preprocess = transforms.Compose(resnet_preprocess_block)
 
 # target_preprocess = transforms.Compose([GetFromAnns(category=True)])
-# target_preprocess = transforms.Compose([])
+# target_preprocess = transforms.Compose([ClassMapping(cfg.out_features)])
 target_preprocess = None
 
 transform = {train_key: train_preprocess, valid_key: eval_preprocess, test_key: eval_preprocess}
 target_transform = {train_key: target_preprocess, valid_key: target_preprocess, test_key: target_preprocess}
 
+mapping_path = os.path.join(DATASET_ROOT, 'annotations', 'mapping.json')
 datasets_dict = {train_key: CocoLocalizationDataset(root=os.path.join(cfg.DATASET_DIR, train_key),
                                                     annFile=os.path.join(cfg.DATASET_DIR, 'annotations',
                                                                          f'instances_{train_key}.json'),
+                                                    mapping=mapping_path,
                                                     transform=transform[train_key],
                                                     target_transform=target_transform[train_key]),
 
                  valid_key: CocoLocalizationDataset(root=os.path.join(cfg.DATASET_DIR, valid_key),
                                                     annFile=os.path.join(cfg.DATASET_DIR, 'annotations',
                                                                          f'instances_{valid_key}.json'),
+                                                    mapping=mapping_path,
                                                     transform=transform[valid_key],
                                                     target_transform=target_transform[valid_key])}
+
 
 if cfg.overfit:
     shuffle = False
