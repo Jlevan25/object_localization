@@ -17,7 +17,7 @@ class Trainer:
                  scheduler, criterion,
                  writer, cfg,
                  datasets_dict=None,
-                 dataloader_dict=None,
+                 dataloaders_dict=None,
                  transform: dict = None,
                  target_transform: dict = None,
                  metrics: list = None):
@@ -34,13 +34,14 @@ class Trainer:
         self.writer = writer
 
         self.datasets = datasets_dict if datasets_dict is not None else dict()
-        self.dataloaders = dataloader_dict if dataloader_dict is not None else dict()
+        self.dataloaders = dataloaders_dict if dataloaders_dict is not None else dict()
 
         self._global_step = dict()
 
+    def _get_global_step(self, data_type):
+        self._global_step[data_type] = -1
+
     def _get_data(self, data_type):
-        if data_type not in self._global_step:
-            self._global_step[data_type] = -1
         transform = self.transform[data_type] if self.transform is not None else None
         target_transform = self.target_transform[data_type] if self.target_transform is not None else None
 
@@ -87,6 +88,9 @@ class Trainer:
 
         if stage not in self.dataloaders:
             self._get_data(stage)
+
+        if stage not in self._global_step:
+            self._get_global_step(stage)
 
         calc_metrics = self.metrics is not None and self.metrics
         print('\n_______', stage, f'epoch{epoch}' if epoch is not None else '',
