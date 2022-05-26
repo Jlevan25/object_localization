@@ -28,8 +28,6 @@ def filter(dataset, stage):
         images.append(dataset.coco.loadImgs(idishnik)[0])
         annotations.extend(target)
 
-    print()
-
     dataset.coco.dataset['images'] = images
     dataset.coco.dataset['annotations'] = annotations
 

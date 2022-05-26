@@ -1,14 +1,14 @@
 import os.path
+from typing import List
 
 import torch
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 import models
 from torch import optim, nn
-from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from datasets import CocoLocalizationDataset
-from utils import one_hot_argmax
+from metrics import Metric
 
 
 class Trainer:
@@ -20,7 +20,7 @@ class Trainer:
                  dataloaders_dict=None,
                  transform: dict = None,
                  target_transform: dict = None,
-                 metrics: list = None):
+                 metrics: List[Metric] = None):
         self.cfg = cfg
         self.model = model
 
@@ -70,8 +70,8 @@ class Trainer:
         self._calc_metrics(stage, self.cfg.debug, is_epoch=True)
 
     @torch.no_grad()
-    def _calc_batch_metrics(self, masks, targets, stage, debug):
-        self._calc_metrics(stage, debug, one_hot_argmax(masks), targets)
+    def _calc_batch_metrics(self, predictions, targets, stage, debug):
+        self._calc_metrics(stage, debug, predictions, targets)
 
     def _calc_metrics(self, stage, debug, *batch, is_epoch: bool = False):
         for metric in self.metrics:
@@ -104,13 +104,12 @@ class Trainer:
             self._global_step[stage] += 1
             debug = self.cfg.debug and i % self.cfg.show_each == 0
 
-            # one_hots = F.one_hot(targets, num_classes=self.cfg.out_features).transpose(1, -1).squeeze(-1)
             predictions = self.model(images.to(self.device))
 
-            # if calc_metrics:
-            #     self._calc_batch_metrics(predictions, one_hots, stage, debug)
+            if calc_metrics:
+                self._calc_batch_metrics(predictions.argmax(1), targets, stage, debug)
 
-            loss = self.criterion(predictions, targets.to(self.device).float())
+            loss = self.criterion(predictions, targets.to(self.device))
             self.writer.add_scalar(f'{stage}/loss', loss, self._global_step[stage])
 
             if debug:

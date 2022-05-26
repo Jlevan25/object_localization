@@ -17,6 +17,7 @@ from transforms import UnNormalize, GetFromAnns, ClassMapping
 from configs import Config
 from metrics import MeanIoU, BalancedAccuracy
 from torch.utils.tensorboard import SummaryWriter
+from metrics import mAP
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATASET_ROOT = os.path.join(ROOT, 'datasets', 'COCO_SOLO')
@@ -24,7 +25,7 @@ DATASET_ROOT = os.path.join(ROOT, 'datasets', 'COCO_SOLO')
 cfg = Config(ROOT_DIR=ROOT, DATASET_DIR=DATASET_ROOT,
              dataset_name='COCO_SOLO', out_features=80,
              model_name='Resnet50', device='cpu',
-             batch_size=128, lr=0.01, overfit=False,
+             batch_size=32, lr=0.01, overfit=False,
              debug=True, show_each=100,
              seed=None)
 
@@ -34,6 +35,13 @@ if cfg.seed is not None:
     np.random.seed(cfg.seed)
     torch.manual_seed(cfg.seed)
     torch.cuda.manual_seed(cfg.seed)
+
+model = models.resnet50(pretrained=True,
+                        num_classes=cfg.out_features).to(cfg.device)
+image_metrics = [mAP(classes=cfg.out_features, iou_threshold=0.5,
+                     with_cam=True, cam_layer=model.layer4[-1], fc_layer=model.fc)]
+metrics = [  # BalancedAccuracy(cfg.out_features),
+    *image_metrics]
 
 resnet_preprocess_block = [transforms.RandomResizedCrop(224),
                            transforms.ToTensor(),
@@ -55,6 +63,7 @@ datasets_dict = {train_key: CocoLocalizationDataset(root=os.path.join(cfg.DATASE
                                                     annFile=os.path.join(cfg.DATASET_DIR, 'annotations',
                                                                          f'instances_{train_key}.json'),
                                                     mapping=mapping_path,
+                                                    image_metrics=image_metrics,
                                                     transform=transform[train_key],
                                                     target_transform=target_transform[train_key]),
 
@@ -62,9 +71,9 @@ datasets_dict = {train_key: CocoLocalizationDataset(root=os.path.join(cfg.DATASE
                                                     annFile=os.path.join(cfg.DATASET_DIR, 'annotations',
                                                                          f'instances_{valid_key}.json'),
                                                     mapping=mapping_path,
+                                                    image_metrics=image_metrics,
                                                     transform=transform[valid_key],
                                                     target_transform=target_transform[valid_key])}
-
 
 if cfg.overfit:
     shuffle = False
@@ -77,10 +86,6 @@ dataloaders_dict = {train_key: DataLoader(datasets_dict[train_key],
                                           batch_size=cfg.batch_size, shuffle=shuffle),
                     valid_key: DataLoader(datasets_dict[valid_key],
                                           batch_size=cfg.batch_size)}
-
-metrics = [BalancedAccuracy(cfg.out_features)]
-model = models.resnet50(pretrained=True,
-                        num_classes=cfg.out_features).to(cfg.device).eval()
 
 optimizer = optim.Adam(model.parameters(), lr=cfg.lr)
 scheduler = ReduceLROnPlateau(optimizer)
@@ -95,8 +100,8 @@ trainer = Trainer(datasets_dict=datasets_dict, dataloaders_dict=dataloaders_dict
 # trainer.load_model(trainer_cfg.LOAD_PATH)
 epoch = 5
 for epoch in range(epoch):
-    trainer.fit(epoch)
-    trainer.save_model(epoch)
+    # trainer.fit(epoch)
+    # trainer.save_model(epoch)
 
     trainer.writer.add_scalar(f'scheduler lr', trainer.optimizer.param_groups[0]['lr'], epoch)
     trainer.validation(epoch)
