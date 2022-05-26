@@ -1,21 +1,23 @@
 import json
 import os
 import pickle
-from typing import Tuple, Any
+from typing import Tuple, Any, List
 
 import numpy as np
 from PIL.Image import Image
 from torchvision.datasets import CocoDetection
+from metrics import ImageMetric
 
 
 class CocoLocalizationDataset(CocoDetection):
 
-    def __init__(self, root: str, annFile: str, mapping: str = None, transform=None, target_transform=None,
-                 transforms=None):
+    def __init__(self, root: str, annFile: str, mapping: str = None, image_metrics: List[ImageMetric] = None,
+                 transform=None, target_transform=None, transforms=None):
         super().__init__(root, annFile, transform, target_transform, transforms)
         self.overfit = False
         self._batch_size = None
         self.mapping = None
+        self.image_metrics = image_metrics
 
         if mapping is not None:
             self._get_mapping(mapping)
@@ -36,7 +38,13 @@ class CocoLocalizationDataset(CocoDetection):
     def __getitem__(self, index: int) -> Tuple[Any, Any]:
         id = self.ids[index]
         image = self._load_image(id)
-        target = self._load_target(id)[0]['category_id']
+        target = self._load_target(id)
+
+        if self.image_metrics is not None:
+            for metric in self.image_metrics:
+                metric.append_image(image, target)
+
+        target = target[0]['category_id']
 
         if self.mapping is not None:
             target = self.mapping[target]['mapped_id']
