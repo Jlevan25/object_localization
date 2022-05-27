@@ -1,10 +1,5 @@
 import json
-import os
-import pickle
 from typing import Tuple, Any, List
-
-import numpy as np
-from PIL.Image import Image
 from torchvision.datasets import CocoDetection
 from metrics import ImageMetric
 
