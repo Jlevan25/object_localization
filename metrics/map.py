@@ -36,20 +36,24 @@ class ClassAP(ImageMetric):
         mul_shape[0] = weights.shape[0]
         return np.sum(weights.reshape(mul_shape) * activation, axis=0)
 
+    def _clear_curve(self):
+        self.curve = -np.ones((self.num_classes, 11))
+
     @staticmethod
-    def _get_heatmap(cam, image):
+    def _get_heatmap(cam, image_size):
         heatmap = np.maximum(cam, 0)
-        heatmap = cv2.resize(cam, image.size)
+        heatmap = cv2.resize(cam, image_size)
         heatmap = (heatmap - np.min(heatmap)) / (np.max(heatmap) - np.min(heatmap))
         return heatmap
 
     def _get_bounding_box(self, prediction, index):
         image, target = self.batch_images[index], self.batch_targets[index]
-        bb_img = cv2.merge(cv2.split(np.asarray(image))[::-1])
+        #bb_img = cv2.merge(cv2.split(np.asarray(image))[::-1])
+        bb_img = cv2.cvtColor(np.asarray(image), cv2.COLOR_BGR2RGB)
 
         if self.with_cam:
             cam = self._get_cam(prediction, self._activations[index])
-            heatmap = self._get_heatmap(cam, image)
+            heatmap = self._get_heatmap(cam, image.size)
             thresh = cv2.threshold(np.uint8(heatmap * 255), 125, 255, cv2.THRESH_OTSU)[1]
             # Find contours
             cnts = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -100,7 +104,7 @@ class ClassAP(ImageMetric):
         for target in targets:
             intersect = (predictions * target).sum((1, 2))
             union = np.maximum(predictions, target).sum((1, 2))
-            ious.append(check_zero_divide(intersect, union, val=0))
+            ious.append(intersect / union)
 
         ious = np.array(ious)
         zeros = np.zeros_like(ious)
@@ -109,7 +113,7 @@ class ClassAP(ImageMetric):
         ious = zeros
 
         preds = np.sum(ious > self.iou_threshold, 1)
-        tp = np.sum(preds > 0)
+        tp = np.sum(preds)
         fp = ious.shape[1] - tp
         fn = np.sum(preds == 0)
 
@@ -137,6 +141,8 @@ class ClassAP(ImageMetric):
                 if len(confidence_bboxes) > 0:
                     precision, recall = self._iou(self.batch_images[i], confidence_bboxes, target_bb)
                     self._change_curve(target, precision, recall)
+            else:
+                self._change_curve(target, 0., 0.)
 
             # for t in np.arange(0., 1.1, 0.1):
             #     confidence_bboxes = [bb for bb, c in zip(pred_bb, confidences) if c > t]
@@ -148,4 +154,6 @@ class ClassAP(ImageMetric):
         return self.curve.mean(1)
 
     def get_epoch_metric(self):
-        return self.curve.mean(1)
+        squares = self.curve.mean(1)
+        self._clear_curve()
+        return squares
