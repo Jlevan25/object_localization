@@ -28,7 +28,6 @@ def sum_except_dim(x, dim):
 
 def check_zero_divide(x, y):
     if any(y == 0):
-        #out = torch.zeros_like(x)
         out = -np.ones(x.shape, dtype='float32')
         indexes = y > 0
         out[indexes] = x[indexes] / y[indexes]
