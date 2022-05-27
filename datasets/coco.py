@@ -20,13 +20,21 @@ class CocoLocalizationDataset(CocoDetection):
         self.image_metrics = image_metrics
 
         if mapping is not None:
-            self._get_mapping(mapping)
+            self.mapping = self._get_mapping(mapping)
+            self.class_names = {v['mapped_id']: v['name'] for v in self.mapping.values()}
+        else:
+            self.class_names = {k: v['name'] for k, v in self.coco.cats.items()}
 
-    def _get_mapping(self, mapping_path):
+        if image_metrics is not None:
+            for metric in image_metrics:
+                metric.set_class_names(self.class_names)
+
+    @staticmethod
+    def _get_mapping(mapping_path):
         with open(mapping_path, 'r') as f:
             mapping = json.load(f)
             f.close()
-        self.mapping = {int(k): v for k, v in mapping.items()}
+        return {int(k): v for k, v in mapping.items()}
 
     def set_overfit_mode(self, batch_size: int):
         self.overfit = True
@@ -41,6 +49,7 @@ class CocoLocalizationDataset(CocoDetection):
         target = self._load_target(id)
 
         if self.image_metrics is not None:
+
             for metric in self.image_metrics:
                 metric.append_image(image, target)
 
