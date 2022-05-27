@@ -1,14 +1,7 @@
 import os.path
-from typing import List
-
 import torch
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-
-import models
-from torch import optim, nn
 from torch.utils.data import DataLoader
 from datasets import CocoLocalizationDataset
-from metrics import Metric
 
 
 class Trainer:
@@ -54,16 +47,6 @@ class Trainer:
         self.dataloaders[data_type] = DataLoader(self.datasets[data_type], batch_size=self.cfg.batch_size,
                                                  shuffle=self.cfg.shuffle)
 
-        # def collate_target_dict(batch):
-        #     img_list, target_list = batch
-        #     target = target_list[0]
-        #     for t in target_list[1:]:
-        #         for k, v in t.items():
-        #             target[k] = target[k]
-        #     return torch.stack(img_list, 0), target
-
-        # self.dataloaders[data_type] = DataLoader(self.datasets[data_type], batch_size=self.cfg.batch_size,
-        #                                          collate_fn=collate_target_dict, shuffle=self.cfg.shuffle)
 
     @torch.no_grad()
     def _calc_epoch_metrics(self, stage):
@@ -82,11 +65,13 @@ class Trainer:
                 if scalar >= 0:
                     self.writer.add_scalar(f'{stage}/{metric_name}/{cls}', scalar.item(), self._global_step[stage])
 
-            mean_value = values[values >= 0].mean().item()
+            mean_value = values[values >= 0]
+            mean_value = mean_value.mean().item() if len(mean_value) > 0 else 0.
 
             self.writer.add_scalar(f'{stage}/{metric_name}/overall', mean_value, self._global_step[stage])
 
             if debug:
+                values[values < 0] = 0.
                 print("{}: {}".format(metric_name, list(values)))
                 print("{} mean: {}".format(metric_name, mean_value))
 

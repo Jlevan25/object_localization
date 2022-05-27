@@ -9,13 +9,12 @@ from torch.utils.data import DataLoader
 
 import models
 from torch import optim, nn
-from torchvision import transforms, datasets
+from torchvision import transforms
 
 from datasets import CocoLocalizationDataset
 from executors.trainer import Trainer
-from transforms import UnNormalize, GetFromAnns, ClassMapping
 from configs import Config
-from metrics import MeanIoU, BalancedAccuracy
+from metrics import BalancedAccuracy
 from torch.utils.tensorboard import SummaryWriter
 from metrics import ClassAP
 from utils import split_params4weight_decay
@@ -25,7 +24,7 @@ DATASET_ROOT = os.path.join(ROOT, 'datasets', 'COCO_SOLO')
 
 cfg = Config(ROOT_DIR=ROOT, DATASET_DIR=DATASET_ROOT,
              dataset_name='COCO_SOLO', out_features=80,
-             model_name='Resnet50', device='cuda',
+             model_name='Resnet50', device='cpu',
              batch_size=64, lr=5e-4, overfit=False,
              debug=True, show_each=100,
              seed=None)

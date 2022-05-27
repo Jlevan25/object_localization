@@ -64,7 +64,6 @@ class ClassAP(ImageMetric):
             confidences = ...
 
         target_bboxes = [tuple(np.round(t['bbox']).astype('int')) for t in target]
-        #target_names = [tuple(np.round(t['bbox']).astype('int')) for t in target]
 
         for conf, box in zip(confidences, bboxes):
             x, y, w, h = box
