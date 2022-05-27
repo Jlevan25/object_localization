@@ -66,10 +66,10 @@ class ClassAP(ImageMetric):
 
         for conf, box in zip(confidences, bboxes):
             x, y, w, h = box
-            text = self.class_names[prediction.item()]+' '+str(round(conf, 3))
+            text = self.class_names[prediction.item()] + ' ' + str(round(conf, 3))
             cv2.rectangle(bb_img, (x, y), (x + w, y + h), (0, 255, 255), 2)
             cv2.rectangle(bb_img, (x, y), (x + len(text) * 25, y + 30), (0, 255, 255), -1)
-            cv2.putText(bb_img, text, (x+5, y + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.85, color=(0, 0, 0))
+            cv2.putText(bb_img, text, (x + 5, y + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.85, color=(0, 0, 0))
 
         for box in target_bboxes:
             x, y, w, h = box
@@ -82,7 +82,7 @@ class ClassAP(ImageMetric):
         if self.save_path is not None:
             heatmap = cv2.applyColorMap(np.uint8(255 * heatmap), cv2.COLORMAP_JET)
             img = cv2.hconcat([bb_img, heatmap])
-            cv2.imwrite(os.path.join(self.save_path, str(target[0]['image_id'])+'.jpg'), img)
+            cv2.imwrite(os.path.join(self.save_path, str(target[0]['image_id']) + '.jpg'), img)
 
         return bboxes, target_bboxes, confidences
 
@@ -121,9 +121,11 @@ class ClassAP(ImageMetric):
     def _change_curve(self, target, precision, recall):
         index = int(recall * 10)
         curve = self.curve[target]
+        curve[curve < 0] = 0.
         # if precision > self.curve[target, index]:
-        smaller_precisions = self.curve[target, :index + 1] < precision
-        self.curve[smaller_precisions] = precision
+        smaller_precisions = curve[:index + 1] < precision
+        curve[:index + 1][smaller_precisions] = precision
+        self.curve[target] = curve
 
     def get_batch_metric(self, predictions, targets):
         for i, (prediction, target) in enumerate(zip(predictions, targets)):
