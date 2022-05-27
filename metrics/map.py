@@ -2,7 +2,6 @@ import os
 
 import cv2
 import numpy as np
-import torch
 from torch import nn
 from utils import check_zero_divide
 
@@ -77,6 +76,7 @@ class ClassAP(ImageMetric):
             cv2.rectangle(bb_img, (x, y), (x + w, y + h), (255, 0, 0), 2)
 
         # cv2.imshow('first', bb_img)
+        # cv2.imshow('heatmap', cv2.applyColorMap(np.uint8(255 * heatmap), cv2.COLORMAP_JET))
         # cv2.waitKey()
 
         if self.save_path is not None:
@@ -89,21 +89,18 @@ class ClassAP(ImageMetric):
     def _iou(self, image, pred_bboxes, target_bboxes):
         predictions = np.array([np.zeros(image.size)] * len(pred_bboxes))
         targets = np.array([np.zeros(image.size)] * len(target_bboxes))
+
         for i, (x, y, w, h) in enumerate(pred_bboxes):
-            # predictions[i, y: y + h, x: x + w] = 1
             predictions[i, x: x + w, y: y + h] = 1
 
         for i, (x, y, w, h) in enumerate(target_bboxes):
-            # targets[i, y: y + h, x: x + w] = 1
             targets[i, x: x + w, y: y + h] = 1
 
         ious = []
         for target in targets:
             intersect = (predictions * target).sum((1, 2))
             union = np.maximum(predictions, target).sum((1, 2))
-
-            iou = check_zero_divide(intersect, union)
-            ious.append(iou)
+            ious.append(check_zero_divide(intersect, union, val=0))
 
         ious = np.array(ious)
         zeros = np.zeros_like(ious)
@@ -124,8 +121,9 @@ class ClassAP(ImageMetric):
     def _change_curve(self, target, precision, recall):
         index = int(recall * 10)
         curve = self.curve[target]
-        if precision > self.curve[target, index]:
-            self.curve[target, :index + 1] = precision
+        # if precision > self.curve[target, index]:
+        smaller_precisions = self.curve[target, :index + 1] < precision
+        self.curve[smaller_precisions] = precision
 
     def get_batch_metric(self, predictions, targets):
         for i, (prediction, target) in enumerate(zip(predictions, targets)):

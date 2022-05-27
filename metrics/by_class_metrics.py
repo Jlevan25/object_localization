@@ -5,7 +5,6 @@ from metrics.metrics import _ByClassMetric
 from utils import check_zero_divide, sum_except_dim
 
 from torch.nn import functional as F
-from utils import one_hot_argmax
 
 
 class BalancedAccuracy(_ByClassMetric):

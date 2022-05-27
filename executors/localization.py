@@ -1,6 +1,4 @@
-import json
 import os.path
-import pickle
 
 import numpy as np
 import torch
@@ -26,7 +24,7 @@ cfg = Config(ROOT_DIR=ROOT, DATASET_DIR=DATASET_ROOT,
              dataset_name='COCO_SOLO', out_features=80,
              model_name='Resnet50', device='cpu',
              batch_size=64, lr=5e-4, overfit=False,
-             debug=True, show_each=100,
+             debug=True, show_each=100, write_by_class_metrics=False,
              seed=None)
 
 train_key, valid_key, test_key = 'train', 'val', 'test'
@@ -100,15 +98,16 @@ criterion = nn.CrossEntropyLoss()
 
 writer = SummaryWriter(log_dir=cfg.LOG_PATH)
 
-trainer = Trainer(datasets_dict=datasets_dict, dataloaders_dict=dataloaders_dict,
+class_names = [v for v in datasets_dict[train_key].class_names.values()]
+trainer = Trainer(dataloaders_dict=dataloaders_dict, class_names=class_names,
                   model=model, optimizer=optimizer, scheduler=scheduler,
                   criterion=criterion, writer=writer, cfg=cfg, metrics=metrics)
 
 trainer.load_model(os.path.join(ROOT, 'checkpoints', '8.pth'))
 epoch = 1
 for epoch in range(epoch):
-    trainer.fit(epoch)
-    trainer.save_model(epoch)
+    # trainer.fit(train_key, epoch)
+    # trainer.save_model(epoch)
 
     trainer.writer.add_scalar(f'scheduler lr', trainer.optimizer.param_groups[0]['lr'], epoch)
-    trainer.validation(epoch)
+    trainer.validation(valid_key, epoch)

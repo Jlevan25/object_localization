@@ -1,5 +1,8 @@
 import os.path
+from typing import Iterator
+
 import torch
+from torch import tensor
 from torch.utils.data import DataLoader
 from datasets import CocoLocalizationDataset
 
@@ -9,7 +12,7 @@ class Trainer:
                  model, optimizer,
                  scheduler, criterion,
                  writer, cfg,
-                 datasets_dict=None,
+                 class_names=None,
                  dataloaders_dict=None,
                  transform: dict = None,
                  target_transform: dict = None,
@@ -26,7 +29,8 @@ class Trainer:
         self.device = self.cfg.device
         self.writer = writer
 
-        self.datasets = datasets_dict if datasets_dict is not None else dict()
+        #self.datasets = datasets_dict if datasets_dict is not None else dict()
+        self.class_names = class_names if class_names is not None else list(range(cfg.out_features))
         self.dataloaders = dataloaders_dict if dataloaders_dict is not None else dict()
 
         self._global_step = dict()
@@ -47,35 +51,48 @@ class Trainer:
         self.dataloaders[data_type] = DataLoader(self.datasets[data_type], batch_size=self.cfg.batch_size,
                                                  shuffle=self.cfg.shuffle)
 
-
     @torch.no_grad()
     def _calc_epoch_metrics(self, stage):
-        self._calc_metrics(stage, self.cfg.debug, is_epoch=True)
+        for metric in self.metrics[stage]:
+            self._write_metrics(metric_values=metric.get_epoch_metric(),
+                                metric_name=type(metric).__name__,
+                                stage=stage, debug=self.cfg.debug)
 
     @torch.no_grad()
     def _calc_batch_metrics(self, predictions, targets, stage, debug):
-        self._calc_metrics(stage, debug, predictions, targets)
-
-    def _calc_metrics(self, stage, debug, *batch, is_epoch: bool = False):
         for metric in self.metrics[stage]:
-            values = metric(is_epoch, *batch)
-            metric_name = type(metric).__name__
+            self._write_metrics(metric_values=metric.get_batch_metric(predictions, targets),
+                                metric_name=type(metric).__name__,
+                                stage=stage, debug=debug)
 
-            for cls, scalar in (zip(self.classes, values) if hasattr(self, 'classes') else enumerate(values)):
-                if scalar >= 0:
-                    self.writer.add_scalar(f'{stage}/{metric_name}/{cls}', scalar.item(), self._global_step[stage])
+    def _write_metrics(self, metric_values, metric_name, stage, debug):
 
-            mean_value = values[values >= 0]
+        if len(metric_values) > 1:
+            if self.cfg.write_by_class_metrics:
+                for cls, scalar in zip(self.class_names, metric_values):
+                    if scalar >= 0:
+                        self.writer.add_scalar(f'{stage}/{metric_name}/{cls}', scalar.item(), self._global_step[stage])
+
+            mean_value = metric_values[metric_values >= 0]
             mean_value = mean_value.mean().item() if len(mean_value) > 0 else 0.
-
-            self.writer.add_scalar(f'{stage}/{metric_name}/overall', mean_value, self._global_step[stage])
+            self.writer.add_scalar(f'{stage}/{metric_name}/mean', mean_value, self._global_step[stage])
 
             if debug:
-                values[values < 0] = 0.
-                print("{}: {}".format(metric_name, list(values)))
-                print("{} mean: {}".format(metric_name, mean_value))
+                metric_values[metric_values < 0] = 0.
+                if self.cfg.write_by_class_metrics:
+                    print("{}: {}".format(metric_name, list(metric_values)))
 
-    def _epoch_step(self, stage='test', epoch=None):
+                print("Mean {}: {}".format(metric_name, mean_value))
+
+        else:
+            metric_values = metric_values.item()
+            self.writer.add_scalar(f'{stage}/{metric_name}', metric_values, self._global_step[stage])
+
+            if debug:
+                print("{}: {}".format(metric_name, metric_values))
+
+
+    def _epoch_generator(self, stage, epoch=None) -> Iterator[tensor]:
 
         if stage not in self.dataloaders:
             self._get_data(stage)
@@ -104,28 +121,26 @@ class Trainer:
             if calc_metrics:
                 self._calc_batch_metrics(predictions.argmax(1), targets.cpu(), stage, debug)
 
-            if stage == 'train':
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
+            yield loss
 
-            if stage == 'valid':
-                self.scheduler.step(loss.detach())
-
-        if calc_metrics and epoch is not None:
+        if calc_metrics:
             print('\n___', f'Epoch Summary', '___')
             self._calc_epoch_metrics(stage)
 
-    def fit(self, i_epoch):
-        self._epoch_step(stage='train', epoch=i_epoch)
+    def fit(self, stage_key, i_epoch):
+        for batch_loss in self._epoch_generator(stage=stage_key, epoch=i_epoch):
+            self.optimizer.zero_grad()
+            batch_loss.backward()
+            self.optimizer.step()
 
     @torch.no_grad()
-    def validation(self, i_epoch):
-        self._epoch_step(stage='val', epoch=i_epoch)
+    def validation(self, stage_key, i_epoch):
+        for batch_loss in self._epoch_generator(stage=stage_key, epoch=i_epoch):
+            self.scheduler.step(batch_loss.detach())
 
     @torch.no_grad()
-    def test(self):
-        self._epoch_step(stage='test')
+    def test(self, stage_key):
+        self._epoch_generator(stage=stage_key)
 
     def save_model(self, epoch, path=None):
         path = self.cfg.SAVE_PATH if path is None else path

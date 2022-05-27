@@ -1,15 +1,11 @@
 from abc import abstractmethod, ABC
 
 import torch
-from torch import nn
 
 from utils import check_zero_divide
 
 
-class Metric(nn.Module):
-
-    def forward(self, epoch: bool = False, *args, **kwargs):
-        return self.get_epoch_metric() if epoch else self.get_batch_metric(*args, **kwargs)
+class Metric:
 
     @abstractmethod
     def get_epoch_metric(self):
