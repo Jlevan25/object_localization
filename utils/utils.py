@@ -26,9 +26,9 @@ def sum_except_dim(x, dim):
     return x.transpose(dim, 0).reshape(x.shape[dim], -1).sum(1)
 
 
-def check_zero_divide(x, y):
+def check_zero_divide(x, y, val=-1):
     if any(y == 0):
-        out = -np.ones(x.shape, dtype='float32')
+        out = np.ones(x.shape, dtype='float32') * val
         indexes = y > 0
         out[indexes] = x[indexes] / y[indexes]
     else:
