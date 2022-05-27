@@ -129,13 +129,14 @@ class ClassAP(ImageMetric):
 
     def get_batch_metric(self, predictions, targets):
         for i, (prediction, target) in enumerate(zip(predictions, targets)):
-            pred_bb, target_bb, confidences = self._get_bounding_box(prediction, i)
+            if prediction == target:
+                pred_bb, target_bb, confidences = self._get_bounding_box(prediction, i)
 
-            confidence_bboxes = [bb for bb, confidence in zip(pred_bb, confidences)
-                                 if confidence > self.confidence_threshold]
-            if len(confidence_bboxes) > 0:
-                precision, recall = self._iou(self.batch_images[i], confidence_bboxes, target_bb)
-                self._change_curve(target, precision, recall)
+                confidence_bboxes = [bb for bb, confidence in zip(pred_bb, confidences)
+                                     if confidence > self.confidence_threshold]
+                if len(confidence_bboxes) > 0:
+                    precision, recall = self._iou(self.batch_images[i], confidence_bboxes, target_bb)
+                    self._change_curve(target, precision, recall)
 
             # for t in np.arange(0., 1.1, 0.1):
             #     confidence_bboxes = [bb for bb, c in zip(pred_bb, confidences) if c > t]
